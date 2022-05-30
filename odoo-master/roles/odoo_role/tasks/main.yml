@@ -1,0 +1,5 @@
+---
+- include_tasks: setup_debian.yml
+  when: ansible_facts['os_family'] == "Debian"
+- include_tasks: odoo_setup.yaml
+- include_tasks: postgresql_setup.yaml

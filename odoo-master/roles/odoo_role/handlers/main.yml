@@ -1,0 +1,11 @@
+---
+- name: restart postgres
+  systemd:
+    name: postgresql@12-main
+    state: restarted
+- name: Reloading daemon and restarting odoo15
+  systemd:
+    name: 'odoo15.service'
+    daemon_reload: yes
+    enabled: yes
+    state: restarted

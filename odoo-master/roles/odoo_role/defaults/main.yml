@@ -1,0 +1,49 @@
+---
+python_dependencies: 
+  - python3-dev 
+  - libxml2-dev 
+  - libxslt1-dev 
+  - libldap2-dev 
+  - libsasl2-dev
+  - libtiff5-dev 
+  - libjpeg8-dev 
+  - libopenjp2-7-dev 
+  - zlib1g-dev 
+  - libfreetype6-dev 
+  - liblcms2-dev 
+  - libwebp-dev 
+  - libharfbuzz-dev 
+  - libfribidi-dev 
+  - libxcb1-dev 
+  - libpq-dev 
+odoo_group: odoo15
+odoo_user: odoo15
+odoo_home: /opt/odoo15
+odoo_shell: /bin/bash
+root_user: root
+python_package_manager: pip
+access_control: acl
+odoo_sudoers_permissions_location: /etc/sudoers
+odoo_git_url: https://github.com/odoo/odoo.git
+odoo_download_destination: /opt/odoo15/odoo
+number_of_commits_in_odoo_to_download: 1
+wkhtmltopdf_version: 0.12.5
+wkhtmltopdf_url: https://github.com/wkhtmltopdf/wkhtmltopdf/releases/download/{{wkhtmltopdf_version}}/wkhtmltox_{{wkhtmltopdf_version}}-1.bionic_amd64.deb
+wkhtmltopdf_download_dest: /tmp
+wkhtmltopdf_deb_package_path: /tmp/wkhtmltox_0.12.5-1.bionic_amd64.deb
+package_tools: 
+  - setuptools
+  - wheel
+virtualenv_path: /opt/odoo15/venvs/odoo-venv
+odoo_requirements: /opt/odoo15/odoo/requirements.txt
+odoo_addons_path: /opt/odoo15/odoo-custom-addons
+odoo_configuration_path: /etc/odoo15.conf
+odoo_service_path: /etc/systemd/system/odoo15.service
+postgresql:
+  - postgresql
+  - postgresql-client
+db_user: odoo15
+db_password: odoo15
+db_name: odoo15
+db_root_user: postgres
+pg_hba_config_path: /etc/postgresql/12/main/pg_hba.conf

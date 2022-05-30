@@ -1,0 +1,15 @@
+---
+- hosts: all
+  become: yes
+  tasks:
+    - name: "Check if pip is installed"
+      package_facts:
+        manager: "auto"
+    - name: "pip result"
+      debug:
+         msg: "pip found"
+      when: "'python-pip' in ansible_facts.packages"
+    - name: "pip result"
+      debug:
+         msg: "pip NOT found"
+      when: "'python-pip' not in ansible_facts.packages"

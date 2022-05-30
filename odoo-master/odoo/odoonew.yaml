@@ -1,0 +1,119 @@
+---
+- name: Deploying odoo 
+  hosts: all
+  become: yes
+  tasks:
+    - name: Updating Repository urls
+      apt:
+        update_cache: yes
+    - name: installing python dependencies of Odoo
+      apt:
+        name: "{{item}}"
+        state: present
+      with_items:
+        - python3-dev 
+        - libxml2-dev 
+        - libxslt1-dev 
+        - libldap2-dev 
+        - libsasl2-dev
+        - libtiff5-dev 
+        - libjpeg8-dev 
+        - libopenjp2-7-dev 
+        - zlib1g-dev 
+        - libfreetype6-dev 
+        - liblcms2-dev 
+        - libwebp-dev 
+        - libharfbuzz-dev 
+        - libfribidi-dev 
+        - libxcb1-dev 
+        - libpq-dev
+    - name: Creating group
+      ansible.builtin.group:
+        name: odoo15
+        state: present
+    - name: Creating user odoo
+      ansible.builtin.user:
+        name: odoo15
+        home: /opt/odoo15
+        create_home: yes
+        shell: /bin/bash
+        state: present
+        group: odoo15
+        system: yes
+    - name: Installing pip & acl
+      apt:
+        name: 
+          - pip
+          - acl
+        state: present
+    - name: Adding odoo15 to sudoers group
+      ansible.builtin.template:
+        src: 'sudoers.j2'
+        dest: /etc/sudoers
+    - name: Downloading wkhtmltopdf  
+      ansible.builtin.get_url:
+        url: https://github.com/wkhtmltopdf/wkhtmltopdf/releases/download/0.12.5/wkhtmltox_0.12.5-1.bionic_amd64.deb
+        dest: /tmp
+    - name: Installing wkhtmltopdf
+      apt:
+        deb: /tmp/wkhtmltox_0.12.5-1.bionic_amd64.deb
+        state: present
+      become: yes
+      become_user: odoo15
+    - name: Downloading odoo15
+      ansible.builtin.git:
+        repo: 'https://github.com/odoo/odoo.git'
+        dest: /opt/odoo15/odoo
+        clone: yes
+        depth: 1
+        recursive: yes
+      become: yes
+      become_user: odoo15
+    - name: Installing Vitrual Env  
+      pip:
+        name: virtualenv
+        state: present
+    - name: Installing pip
+      ansible.builtin.pip:
+        name: "{{item}}"
+        state: present
+      with_items:
+        - setuptools
+        - wheel
+      become: yes
+      become_user: odoo15
+    - name: Installing pip
+      ansible.builtin.pip:
+        state: present
+        virtualenv: /opt/odoo15/venvs/odoo-venv
+        virtualenv_python: python3
+        requirements: /opt/odoo15/odoo/requirements.txt
+      become: yes
+      become_user: odoo15
+    - name: Create a directory if it does not exist
+      ansible.builtin.file:
+        path: /opt/odoo15/odoo-custom-addons
+        state: directory
+        mode: '0755'
+      become_user: odoo15
+      become: yes
+    - name: Configuring the database 
+      ansible.builtin.template:
+        src: 'odoo15.conf.j2'
+        dest: '/etc/odoo15.conf'
+    - name: Configuring the odoo15 service file 
+      ansible.builtin.template:
+        src: 'odoo15.service.j2'
+        dest: '/etc/systemd/system/odoo15.service'
+    - name: Installing PostgreSQL
+      apt:
+        name: 
+          - postgresql
+          - postgresql-client
+        state: present
+    - name: Reloading daemon and restarting odoo15
+      ansible.builtin.systemd:
+        name: 'odoo15.service'
+        daemon_reload: yes
+        enabled: yes
+        state: restarted

@@ -1,0 +1,79 @@
+---
+- name: Deploying odoo 
+  hosts: all
+  become: yes
+  tasks:
+    - name: Updating Repository urls
+      apt:
+        update_cache: yes
+    - name: Including package facts 
+      package_facts:
+        manager: "auto"
+    - name: Cloning Git Repository
+      ansible.builtin.git:
+        repo: 'https://github.com/odoo/odoo.git'
+        dest: /home/devops/odoo
+        clone: yes
+      when: "'python3' not in ansible_facts.packages"
+    - name: Checking for python3 and if not installed then will install python
+      apt:
+        name: python3
+        state: present
+      when: "'python3' not in ansible_facts.packages"
+    - name: Checking for pip and if not installed then will install pip
+      apt:
+        name: pip
+        state: present
+      when: "'pip' not in ansible_facts.packages"
+    - name: Installing postgresql 
+      apt:
+        name: "{{ item }}"
+        state: present
+      with_items:
+        - postgresql
+        - postgresql-client
+    - name: Creating user
+      postgresql_user:
+        login_user: postgres
+        name: $USER
+        state: present
+    - name: Creating Database
+      postgresql_db:
+        login_user: postgres
+        name: $USER
+    - name: installing python dependencies of Odoo
+      apt:
+        name: "{{item}}"
+        state: present
+      with_items:
+        - python3-dev 
+        - libxml2-dev 
+        - libxslt1-dev 
+        - libldap2-dev 
+        - libsasl2-dev
+        - libtiff5-dev 
+        - libjpeg8-dev 
+        - libopenjp2-7-dev 
+        - zlib1g-dev 
+        - libfreetype6-dev 
+        - liblcms2-dev 
+        - libwebp-dev 
+        - libharfbuzz-dev 
+        - libfribidi-dev 
+        - libxcb1-dev 
+        - libpq-dev
+    - name: Installing pip requirements
+      ansible.builtin.pip:
+        requirements: /odoo/requirements.txt
+        name: "{{item}}"
+        state: present
+      with_items:
+        - setuptools
+        - wheel
+    - name: Installing npm
+      apt:
+        name: npm
+        state: present
+    
+
+

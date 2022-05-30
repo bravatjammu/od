@@ -1,0 +1,209 @@
+---
+- name: Deploying odoo commerce
+  hosts: all
+  become: yes
+  vars:
+    - python_dependencies: 
+        - python3-dev 
+        - libxml2-dev 
+        - libxslt1-dev 
+        - libldap2-dev 
+        - libsasl2-dev
+        - libtiff5-dev 
+        - libjpeg8-dev 
+        - libopenjp2-7-dev 
+        - zlib1g-dev 
+        - libfreetype6-dev 
+        - liblcms2-dev 
+        - libwebp-dev 
+        - libharfbuzz-dev 
+        - libfribidi-dev 
+        - libxcb1-dev 
+        - libpq-dev
+    - odoo_group: odoo15
+    - odoo_user: odoo15
+    - odoo_home: /opt/odoo15
+    - odoo_shell: /bin/bash
+    - root_user: root
+    - python_package_manager: pip
+    - access_control: acl
+    - odoo_sudoers_permissions_location: /etc/sudoers
+    - odoo_git_url: https://github.com/odoo/odoo.git
+    - odoo_download_destination: /opt/odoo15/odoo
+    - number_of_commits_in_odoo_to_download: 1
+    - wkhtmltopdf_version: 0.12.5
+    - wkhtmltopdf_url: https://github.com/wkhtmltopdf/wkhtmltopdf/releases/download/{{wkhtmltopdf_version}}/wkhtmltox_{{wkhtmltopdf_version}}-1.bionic_amd64.deb
+    - wkhtmltopdf_download_dest: /tmp
+    - wkhtmltopdf_deb_package_path: /tmp/wkhtmltox_0.12.5-1.bionic_amd64.deb
+    - package_tools: 
+        - setuptools
+        - wheel
+    - virtualenv_path: /opt/odoo15/venvs/odoo-venv
+    - odoo_requirements: /opt/odoo15/odoo/requirements.txt
+    - odoo_addons_path: /opt/odoo15/odoo-custom-addons
+    - odoo_configuration_path: /etc/odoo15.conf
+    - odoo_service_path: /etc/systemd/system/odoo15.service
+    - postgresql:
+        - postgresql
+        - postgresql-client
+    - db_user: odoo15
+    - db_password: odoo15
+    - db_name: odoo15
+    - db_root_user: postgres
+    - pg_hba_config_path: /etc/postgresql/12/main/pg_hba.conf
+  tasks:
+    - name: Updating Repository urls
+      apt:
+        update_cache: yes
+    - name: installing python dependencies of Odoo
+      apt:
+        name: "{{item}}"
+        state: present
+      with_items: "{{ python_dependencies }}"
+    - name: Creating group
+      ansible.builtin.group:
+        name: "{{ odoo_group }}"
+        state: present
+    - name: Creating user odoo
+      ansible.builtin.user:
+        name: "{{ odoo_user }}"
+        home: "{{ odoo_home }}"
+        create_home: yes
+        shell: "{{ odoo_shell }}"
+        state: present
+        group: "{{ odoo_group }}"
+        system: yes
+    - name: Installing pip for python package management
+      apt:
+        name: "{{ python_package_manager }}"
+        state: present
+    - name: Installing ACL for user access control
+      apt:
+        name: "{{ access_control }}"
+        state: present
+    - name: Adding odoo15 to sudoers group
+      ansible.builtin.template:
+        src: 'sudoers.j2'
+        dest: "{{ odoo_sudoers_permissions_location }}"
+    - name: Downloading wkhtmltopdf  
+      ansible.builtin.get_url:
+        url: "{{ wkhtmltopdf_url }}"
+        dest: "{{ wkhtmltopdf_download_dest }}"
+    - name: Installing wkhtmltopdf
+      apt:
+        deb: "{{ wkhtmltopdf_deb_package_path }}"
+        state: present
+      become: yes
+      become_user: "{{ root_user }}"
+    - name: Downloading odoo15
+      ansible.builtin.git:
+        repo: "{{ odoo_git_url }}"
+        dest: "{{ odoo_download_destination }}"
+        clone: yes
+        depth: "{{ number_of_commits_in_odoo_to_download }}"
+        recursive: yes
+      become: yes
+      become_user: "{{ odoo_user }}"
+    - name: Installing Vitrual Environment for python
+      pip:
+        name: virtualenv
+        state: present
+    - name: Installing setuptools & wheel 
+      ansible.builtin.pip:
+        name: "{{item}}"
+        state: present
+      with_items: "{{ package_tools }}"
+      become: yes
+      become_user: "{{ odoo_user }}"
+    - name: Installing requirements for odoo15 
+      ansible.builtin.pip:
+        state: present
+        virtualenv: "{{ virtualenv_path }}"
+        virtualenv_python: python3
+        requirements: "{{ odoo_requirements }}"
+      become: yes
+      become_user: "{{ odoo_user }}"
+    - name: Create a directory if it does not exist
+      ansible.builtin.file:
+        path: "{{ odoo_addons_path }}"
+        state: directory
+        mode: '0755'
+      become_user: "{{ odoo_user }}"
+      become: yes
+    - name: Configuring the database 
+      ansible.builtin.template:
+        src: 'odoo15.conf.j2'
+        dest: "{{ odoo_configuration_path }}"
+    - name: Configuring the odoo15 service file 
+      ansible.builtin.template:
+        src: 'odoo15.service.j2'
+        dest: "{{ odoo_service_path }}"
+    - name: Installing PostgreSQL
+      apt:
+        name: "{{ item }}"
+        state: present
+      with_items: "{{ postgresql }}"
+      notify: 
+        - Reloading daemon and restarting odoo15
+    - name: "Install Python packages"
+      pip:
+        name: psycopg2-binary
+        state: present
+    - name: "Find out if PostgreSQL is initialized"
+      ansible.builtin.stat:
+        path: "{{ pg_hba_config_path }}"
+      register: postgres_data
+    - name: "Initialize PostgreSQL"
+      shell:
+        cmd: "service postgresql@12-main initdb"
+      when: not postgres_data.stat.exists
+    - name: "Start and enable services"
+      systemd:
+        name: postgresql@12-main
+        state: started
+        enabled: yes
+    - name: "Create odoo database"
+      postgresql_db:
+        state: present
+        name: "{{ db_name }}"
+      become: yes
+      become_user: "{{ db_root_user }}"
+    - name: "Create db user"
+      postgresql_user:
+        state: present
+        name: "{{ db_user }}"
+        role_attr_flags: CREATEDB,CREATEROLE,SUPERUSER
+        password: "{{ db_password }}"
+      become: yes
+      become_user: "{{ db_root_user }}"
+    - name: "Grant db user access to odoo db"
+      postgresql_privs:
+        type: database
+        database: "{{ db_name }}"
+        roles: "{{ db_user }}"
+        grant_option: yes
+        privs: all
+      become: yes
+      become_user: "{{ db_root_user }}"
+    - name: "Allow md5 connection for the db user"
+      postgresql_pg_hba:
+        dest: "{{ pg_hba_config_path }}"
+        contype: local
+        databases: "{{ db_user }}"
+        method: md5
+        users: "{{ db_user }}"
+        create: true
+      become: yes
+      become_user: "{{ db_root_user }}"
+      notify: restart postgres
+  handlers:
+    - name: restart postgres
+      systemd:
+         name: postgresql@12-main
+         state: restarted
+    - name: Reloading daemon and restarting odoo15
+      ansible.builtin.systemd:
+        name: 'odoo15.service'
+        daemon_reload: yes
+        enabled: yes
+        state: restarted

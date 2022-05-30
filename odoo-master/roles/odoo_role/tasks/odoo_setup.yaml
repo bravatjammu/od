@@ -1,0 +1,86 @@
+---
+- name: installing python dependencies of Odoo
+  apt:
+    name: "{{item}}"
+    state: present
+  with_items: "{{ python_dependencies }}"    
+- name: Creating group
+  ansible.builtin.group:
+    name: "{{ odoo_group }}"
+    state: present
+- name: Creating user odoo
+  ansible.builtin.user:
+    name: "{{ odoo_user }}"
+    home: "{{ odoo_home }}"
+    create_home: yes
+    shell: "{{ odoo_shell }}"
+    state: present
+    group: "{{ odoo_group }}"
+    system: yes    
+- name: Installing pip for python package management
+  apt:
+    name: "{{ python_package_manager }}"
+    state: present
+- name: Installing ACL for user access control
+  apt:
+    name: "{{ access_control }}"
+    state: present
+- name: Adding odoo15 to sudoers group
+  ansible.builtin.template:
+    src: 'sudoers.j2'
+    dest: "{{ odoo_sudoers_permissions_location }}"
+- name: Downloading wkhtmltopdf  
+  ansible.builtin.get_url:
+    url: "{{ wkhtmltopdf_url }}"
+    dest: "{{ wkhtmltopdf_download_dest }}"
+- name: Installing wkhtmltopdf
+  apt:
+    deb: "{{ wkhtmltopdf_deb_package_path }}"
+    state: present
+  become: true
+  become_user: "{{ root_user }}"
+- name: Downloading odoo15
+  ansible.builtin.git:
+    repo: "{{ odoo_git_url }}"
+    dest: "{{ odoo_download_destination }}"
+    clone: yes
+    depth: "{{ number_of_commits_in_odoo_to_download }}"
+    recursive: yes
+  become: true
+  become_user: "{{ odoo_user }}"
+- name: Installing Vitrual Environment for python
+  pip:
+    name: virtualenv
+    state: present
+- name: Installing setuptools & wheel 
+  ansible.builtin.pip:
+    name: "{{item}}"
+    state: present
+  with_items: "{{ package_tools }}"
+  become: true
+  become_user: "{{ odoo_user }}"
+- name: Installing requirements for odoo15 
+  ansible.builtin.pip:
+    state: present
+    virtualenv: "{{ virtualenv_path }}"
+    virtualenv_python: python3
+    requirements: "{{ odoo_requirements }}"
+  become: true
+  become_user: "{{ odoo_user }}"
+- name: Create a directory if it does not exist
+  ansible.builtin.file:
+    path: "{{ odoo_addons_path }}"
+    state: directory
+    mode: '0755'
+  become_user: "{{ odoo_user }}"
+  become: true
+- name: Configuring the database 
+  ansible.builtin.template:
+    src: 'odoo15.conf.j2'
+    dest: "{{ odoo_configuration_path }}"
+- name: Configuring the odoo15 service file 
+  ansible.builtin.template:
+    src: 'odoo15.service.j2'
+    dest: "{{ odoo_service_path }}"
+  notify: 
+    - Reloading daemon and restarting odoo15
